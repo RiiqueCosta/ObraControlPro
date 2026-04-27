@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "ativo": { "type": "boolean" },
+        "criadoEm": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nome", "email", "role", "ativo", "criadoEm"]
+    },
+    "Obra": {
+      "title": "Construction Site",
+      "description": "Details about a construction project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "endereco": { "type": "string" },
+        "cliente": { "type": "string" },
+        "status": { "type": "string", "enum": ["ativa", "pausada", "finalizada"] },
+        "dataInicio": { "type": "string", "format": "date" },
+        "observacoes": { "type": "string" },
+        "criadoPor": { "type": "string" },
+        "criadoEm": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nome", "status", "dataInicio", "criadoPor", "criadoEm"]
+    },
+    "Lancamento": {
+      "title": "Daily Log",
+      "description": "Daily progress report for a construction site",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "obraId": { "type": "string" },
+        "obraNome": { "type": "string" },
+        "data": { "type": "string", "format": "date" },
+        "servicos": { "type": "array", "items": { "type": "string" } },
+        "climaManha": { "type": "string" },
+        "climaTarde": { "type": "string" },
+        "efetivo": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "funcao": { "type": "string" },
+              "quantidade": { "type": "number" },
+              "nome": { "type": "string" }
+            }
+          }
+        },
+        "totalFuncionarios": { "type": "number" },
+        "empresasTerceirizadas": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "fotos": { "type": "array", "items": { "type": "string" } },
+        "criadoPor": { "type": "string" },
+        "criadoPorNome": { "type": "string" },
+        "criadoEm": { "type": "string", "format": "date-time" },
+        "atualizadoEm": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "obraId", "data", "criadoPor", "criadoEm"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Users in the system"
+    },
+    "obras/{obraId}": {
+      "schema": "Obra",
+      "description": "Construction projects"
+    },
+    "lancamentos/{lancamentoId}": {
+      "schema": "Lancamento",
+      "description": "Daily reports for projects"
+    }
+  }
+}

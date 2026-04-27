@@ -1,0 +1,10 @@
+{
+  "name": "ObraControl",
+  "description": "Sistema profissional para Diário de Obra (RDO), controle de equipes, serviços e fotos.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "firebase"
+  ]
+}
