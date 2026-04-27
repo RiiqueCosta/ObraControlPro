@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  getDocs, 
-  query, 
-  where, 
-  serverTimestamp,
-  doc,
-  updateDoc,
-  getDoc
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -54,8 +42,35 @@ export function EditarLancamento() {
 
   useEffect(() => {
     async function fetchData() {
-      // Firestore disabled for now as per request
-      setLoading(false);
+      if (!id) return;
+      try {
+        const obrasSnap = mockDb.query('obras', 'status', '==', 'ativa');
+        setObras(obrasSnap);
+
+        const l = mockDb.getOne('lancamentos', id);
+        if (l) {
+          // Permission check
+          if (profile && !isAdmin && l.criadoPor !== profile.id) {
+            alert("Sem permissão para editar.");
+            navigate('/lancamentos');
+            return;
+          }
+
+          setObraId(l.obraId);
+          setData(l.data);
+          setClimaManha(l.climaManha);
+          setClimaTarde(l.climaTarde);
+          setEmpresasTerceirizadas(l.empresasTerceirizadas || '');
+          setObservacoes(l.observacoes || '');
+          setServicos(l.servicos);
+          setEfetivo(l.efetivo);
+          setFotosUrls(l.fotos || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, [id, isAdmin, profile, navigate]);
@@ -102,17 +117,11 @@ export function EditarLancamento() {
     
     setSaving(true);
     try {
-      const newUrls = [...fotosUrls];
-      for (const file of fotosFiles) {
-        const storageRef = ref(storage, `fotos-obras/${Date.now()}-${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
-        newUrls.push(url);
-      }
+      const allUrls = [...fotosUrls, ...fotosPreviews]; // Previews serve as placeholders since storage is disabled
 
       const selectedObra = obras.find(o => o.id === obraId);
 
-      await updateDoc(doc(db, 'lancamentos', id), {
+      mockDb.update('lancamentos', id, {
         obraId,
         obraNome: selectedObra?.nome || 'Obra Desconhecida',
         data,
@@ -123,17 +132,17 @@ export function EditarLancamento() {
         totalFuncionarios,
         empresasTerceirizadas,
         observacoes,
-        fotos: newUrls,
-        atualizadoEm: serverTimestamp()
+        fotos: allUrls,
       });
 
       navigate(`/lancamentos/${id}`);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `lancamentos/${id}`);
+      console.error(error);
     } finally {
       setSaving(false);
     }
   };
+
 
   if (loading) return <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
 

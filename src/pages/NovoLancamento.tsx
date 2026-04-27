@@ -1,17 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
-  serverTimestamp,
-  doc,
-  updateDoc
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../lib/firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { auth } from '../lib/firebase';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -56,8 +45,12 @@ export function NovoLancamento() {
 
   useEffect(() => {
     async function fetchObras() {
-      // Firestore disabled for now as per request
-      setObras([]);
+      try {
+        const activeObras = mockDb.query('obras', 'status', '==', 'ativa');
+        setObras(activeObras);
+      } catch (err) {
+        console.error("Erro ao buscar obras:", err);
+      }
     }
     fetchObras();
   }, []);
@@ -102,19 +95,12 @@ export function NovoLancamento() {
     
     setLoading(true);
     try {
-      // 1. Upload Fotos
-      const fotoUrls = [];
-      for (const file of fotosFiles) {
-        const storageRef = ref(storage, `fotos-obras/${Date.now()}-${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
-        fotoUrls.push(url);
-      }
+      // Storage disabled for now - simulate with placeholders
+      const fotoUrls = fotosPreviews; // Just use previews/blobs for now since storage is disabled
 
       const selectedObra = obras.find(o => o.id === obraId);
 
-      // 2. Save Lancamento
-      await addDoc(collection(db, 'lancamentos'), {
+      mockDb.save('lancamentos', {
         obraId,
         obraNome: selectedObra?.nome || 'Obra Desconhecida',
         data,
@@ -128,13 +114,11 @@ export function NovoLancamento() {
         fotos: fotoUrls,
         criadoPor: auth.currentUser?.uid,
         criadoPorNome: profile?.nome || auth.currentUser?.email,
-        criadoEm: serverTimestamp(),
-        atualizadoEm: serverTimestamp()
       });
 
       navigate('/lancamentos');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'lancamentos');
+      console.error(error);
     } finally {
       setLoading(false);
     }

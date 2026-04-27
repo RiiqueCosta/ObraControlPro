@@ -1,17 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  updateDoc, 
-  doc, 
-  deleteDoc,
-  serverTimestamp,
-  query,
-  orderBy
-} from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { mockDb } from '../lib/mockDb';
+import { auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -28,11 +17,10 @@ import {
 } from 'lucide-react';
 import { Obra } from '../types';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useSearchParams } from 'react-router-dom';
 
 export function Obras() {
-  const { profile, isAdmin } = useAuth();
+  const { profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [obras, setObras] = useState<Obra[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,8 +47,15 @@ export function Obras() {
   }, [searchParams]);
 
   async function fetchObras() {
-    // Firestore disabled for now as per request
-    setLoading(false);
+    setLoading(true);
+    try {
+      const data = mockDb.getAll('obras');
+      setObras(data.sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()));
+    } catch (error) {
+      console.error("Erro ao buscar obras:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,15 +64,13 @@ export function Obras() {
     setLoading(true);
     try {
       if (editingObra) {
-        await updateDoc(doc(db, 'obras', editingObra.id), {
+        mockDb.update('obras', editingObra.id, {
           ...formData,
-          atualizadoEm: serverTimestamp()
         });
       } else {
-        await addDoc(collection(db, 'obras'), {
+        mockDb.save('obras', {
           ...formData,
           criadoPor: profile?.id || auth.currentUser?.uid,
-          criadoEm: serverTimestamp()
         });
       }
       setShowModal(false);
@@ -92,7 +85,7 @@ export function Obras() {
       });
       fetchObras();
     } catch (error) {
-      handleFirestoreError(error, editingObra ? OperationType.UPDATE : OperationType.CREATE, editingObra ? `obras/${editingObra.id}` : 'obras');
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -102,11 +95,11 @@ export function Obras() {
     setEditingObra(obra);
     setFormData({
       nome: obra.nome,
-      endereco: obra.endereco,
+      endereco: obra.endereco || '',
       cliente: obra.cliente,
       status: obra.status,
       dataInicio: obra.dataInicio,
-      observacoes: obra.observacoes
+      observacoes: obra.observacoes || ''
     });
     setShowModal(true);
   };
@@ -115,10 +108,10 @@ export function Obras() {
     if (!confirm("Tem certeza que deseja excluir esta obra?")) return;
     
     try {
-      await deleteDoc(doc(db, 'obras', id));
+      mockDb.delete('obras', id);
       fetchObras();
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `obras/${id}`);
+      console.error(error);
     }
   };
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   ChevronLeft, 
@@ -36,11 +35,23 @@ export function VisualizarLancamento() {
 
   useEffect(() => {
     async function fetchLancamento() {
-      // Firestore disabled for now as per request
-      setLoading(false);
+      if (!id) return;
+      try {
+        const item = mockDb.getOne('lancamentos', id);
+        if (item) {
+          setLancamento(item);
+        } else {
+          alert("Lançamento não encontrado.");
+          navigate('/lancamentos');
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchLancamento();
-  }, [id]);
+  }, [id, navigate]);
 
   const handleDelete = async () => {
     if (!lancamento || !id) return;
@@ -48,7 +59,7 @@ export function VisualizarLancamento() {
     if (!canDelete) return alert("Você não tem permissão.");
     
     if (confirm("Tem certeza que deseja excluir?")) {
-      await deleteDoc(doc(db, 'lancamentos', id));
+      mockDb.delete('lancamentos', id);
       navigate('/lancamentos');
     }
   };
@@ -155,7 +166,7 @@ export function VisualizarLancamento() {
                   <div className="text-lg font-bold text-neutral-900">{lancamento.criadoPorNome}</div>
                   <div className="text-sm text-neutral-500 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    Enviado em {format(lancamento.criadoEm.toDate(), "dd/MM/yy 'às' HH:mm")}
+                    Enviado em {format(new Date(lancamento.criadoEm), "dd/MM/yy 'às' HH:mm")}
                   </div>
                 </div>
               </div>

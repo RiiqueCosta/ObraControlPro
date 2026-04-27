@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Users as UsersIcon, 
@@ -30,19 +28,26 @@ export function Usuarios() {
   }, []);
 
   async function fetchUsers() {
-    // Firestore disabled for now as per request
-    setLoading(false);
+    setLoading(true);
+    try {
+      const allUsers = mockDb.getAll('users');
+      setUsers(allUsers.sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const toggleStatus = async (user: UserProfile) => {
     if (user.id === myProfile?.id) return alert("Você não pode desativar a si mesmo.");
     try {
-      await updateDoc(doc(db, 'users', user.id), {
+      mockDb.update('users', user.id, {
         ativo: !user.ativo
       });
       fetchUsers();
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.id}`);
+      console.error(err);
     }
   };
 
@@ -50,12 +55,12 @@ export function Usuarios() {
     if (user.id === myProfile?.id) return alert("Você não pode alterar seu próprio nível de acesso.");
     const newRole = user.role === 'admin' ? 'user' : 'admin';
     try {
-      await updateDoc(doc(db, 'users', user.id), {
+      mockDb.update('users', user.id, {
         role: newRole
       });
       fetchUsers();
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.id}`);
+      console.error(err);
     }
   };
 

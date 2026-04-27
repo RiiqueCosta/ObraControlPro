@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { mockDb } from '../lib/mockDb';
 import { 
   FileText, 
   Search, 
@@ -34,9 +33,15 @@ export function Relatorios() {
 
   useEffect(() => {
     async function loadData() {
-      // Firestore disabled for now as per request
-      setObras([]);
-      setUsuarios([]);
+      try {
+        const obrasData = mockDb.getAll('obras');
+        setObras(obrasData);
+        
+        const usersData = mockDb.getAll('users');
+        setUsuarios(usersData);
+      } catch (err) {
+        console.error("Erro ao carregar dados para relatórios:", err);
+      }
     }
     loadData();
   }, []);
@@ -45,24 +50,19 @@ export function Relatorios() {
     e.preventDefault();
     setLoading(true);
     try {
-      let q = query(
-        collection(db, 'lancamentos'),
-        where('data', '>=', filtros.dataInicio),
-        where('data', '<=', filtros.dataFim),
-        orderBy('data', 'desc')
-      );
-
-      const snap = await getDocs(q);
-      let res = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lancamento));
+      let res = mockDb.getAll('lancamentos');
+      
+      // Filter by date
+      res = res.filter((l: any) => l.data >= filtros.dataInicio && l.data <= filtros.dataFim);
       
       if (filtros.obraId !== 'all') {
-        res = res.filter(l => l.obraId === filtros.obraId);
+        res = res.filter((l: any) => l.obraId === filtros.obraId);
       }
       if (filtros.usuarioId !== 'all') {
-        res = res.filter(l => l.criadoPor === filtros.usuarioId);
+        res = res.filter((l: any) => l.criadoPor === filtros.usuarioId);
       }
       
-      setLancamentos(res);
+      setLancamentos(res.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()));
     } catch (error) {
       console.error(error);
     } finally {

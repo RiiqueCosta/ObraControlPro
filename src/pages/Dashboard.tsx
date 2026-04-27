@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  collection, 
-  query, 
-  getDocs, 
-  limit, 
-  orderBy, 
-  where,
-  Timestamp 
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   HardHat, 
@@ -27,7 +18,7 @@ import { ptBR } from 'date-fns/locale';
 import { Obra, Lancamento } from '../types';
 
 export function Dashboard() {
-  const { profile, isAdmin } = useAuth();
+  const { profile } = useAuth();
   const [stats, setStats] = useState({
     obrasAtivas: 0,
     lancamentosMes: 0,
@@ -37,10 +28,43 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Firestore disabled for now as per request
     async function fetchData() {
-      setLoading(false);
+      try {
+        // Stats: Obras Ativas
+        const obrasAtivas = mockDb.query('obras', 'status', '==', 'ativa');
+        
+        // Stats: Lancamentos Mes
+        const monthStart = startOfMonth(new Date());
+        const lancamentosMes = mockDb.query(
+          'lancamentos', 
+          'data', 
+          '>=', 
+          format(monthStart, 'yyyy-MM-dd')
+        );
+
+        // Stats: Usuarios
+        const usuariosAtivos = mockDb.query('users', 'ativo', '==', true);
+
+        // Recent Lancamentos
+        const allLancamentos = mockDb.getAll('lancamentos');
+        const recent = allLancamentos
+          .sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+          .slice(0, 5);
+
+        setStats({
+          obrasAtivas: obrasAtivas.length,
+          lancamentosMes: lancamentosMes.length,
+          usuariosAtivos: usuariosAtivos.length
+        });
+
+        setRecentLancamentos(recent);
+      } catch (error) {
+        console.error("Erro ao carregar dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
     }
+
     fetchData();
   }, []);
 

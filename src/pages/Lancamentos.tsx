@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  collection, 
-  getDocs, 
-  query, 
-  orderBy, 
-  where,
-  deleteDoc,
-  doc
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { mockDb } from '../lib/mockDb';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -42,13 +33,24 @@ export function Lancamentos() {
   }, []);
 
   async function fetchObras() {
-    // Firestore disabled for now as per request
-    setObrasList([]);
+    try {
+      const snap = mockDb.getAll('obras');
+      setObrasList(snap.map((doc: any) => ({ id: doc.id, nome: doc.nome })));
+    } catch (error) {
+      console.error("Erro ao buscar obras:", error);
+    }
   }
 
   async function fetchLancamentos() {
-    // Firestore disabled for now as per request
-    setLoading(false);
+    setLoading(true);
+    try {
+      const snap = mockDb.getAll('lancamentos');
+      setLancamentos(snap.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()));
+    } catch (error) {
+      console.error("Erro ao buscar lançamentos:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleDelete = async (e: React.MouseEvent, item: Lancamento) => {
@@ -61,7 +63,7 @@ export function Lancamentos() {
     if (!confirm("Excluir este lançamento permanentemente?")) return;
     
     try {
-      await deleteDoc(doc(db, 'lancamentos', item.id));
+      mockDb.delete('lancamentos', item.id);
       fetchLancamentos();
     } catch (error) {
       console.error("Erro ao excluir:", error);
@@ -170,7 +172,7 @@ export function Lancamentos() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-neutral-700 font-medium">{item.criadoPorNome}</div>
-                      <div className="text-[10px] text-neutral-400 italic">Enviado em {format(item.criadoEm.toDate(), 'HH:mm')}</div>
+                      <div className="text-[10px] text-neutral-400 italic">Enviado em {format(new Date(item.criadoEm), 'HH:mm')}</div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

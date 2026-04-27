@@ -23,16 +23,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Mock profile from Auth data to avoid Firestore dependency for now
-        const mockProfile: UserProfile = {
-          id: firebaseUser.uid,
-          nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
-          email: firebaseUser.email || '',
-          role: 'admin', // Default to admin for the current user in this phase
-          ativo: true,
-          criadoEm: new Date() as any // Simplified for UI
-        };
-        setProfile(mockProfile);
+        // Use localStorage for profile as requested "no Firestore for now"
+        const profiles = JSON.parse(localStorage.getItem('users') || '[]');
+        let userProfile = profiles.find((p: any) => p.id === firebaseUser.uid);
+        
+        if (!userProfile) {
+          const isFirstUser = profiles.length === 0;
+          userProfile = {
+            id: firebaseUser.uid,
+            nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
+            email: firebaseUser.email || '',
+            role: isFirstUser ? 'admin' : 'user', 
+            ativo: true,
+            criadoEm: new Date().toISOString()
+          };
+          profiles.push(userProfile);
+          localStorage.setItem('users', JSON.stringify(profiles));
+        }
+        setProfile(userProfile);
       } else {
         setProfile(null);
       }
