@@ -54,37 +54,8 @@ export function EditarLancamento() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!id) return;
-      try {
-        const obrasSnap = await getDocs(query(collection(db, 'obras'), where('status', '==', 'ativa')));
-        setObras(obrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
-
-        const lancSnap = await getDoc(doc(db, 'lancamentos', id));
-        if (lancSnap.exists()) {
-          const l = lancSnap.data() as Lancamento;
-          
-          // Permission check
-          if (!isAdmin && l.criadoPor !== profile?.id) {
-            alert("Sem permissão para editar.");
-            navigate('/lancamentos');
-            return;
-          }
-
-          setObraId(l.obraId);
-          setData(l.data);
-          setClimaManha(l.climaManha);
-          setClimaTarde(l.climaTarde);
-          setEmpresasTerceirizadas(l.empresasTerceirizadas);
-          setObservacoes(l.observacoes);
-          setServicos(l.servicos);
-          setEfetivo(l.efetivo);
-          setFotosUrls(l.fotos);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      // Firestore disabled for now as per request
+      setLoading(false);
     }
     fetchData();
   }, [id, isAdmin, profile, navigate]);

@@ -30,16 +30,8 @@ export function Usuarios() {
   }, []);
 
   async function fetchUsers() {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'users'), orderBy('criadoEm', 'desc'));
-      const snap = await getDocs(q);
-      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    // Firestore disabled for now as per request
+    setLoading(false);
   }
 
   const toggleStatus = async (user: UserProfile) => {

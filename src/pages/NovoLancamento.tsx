@@ -56,9 +56,8 @@ export function NovoLancamento() {
 
   useEffect(() => {
     async function fetchObras() {
-      const q = query(collection(db, 'obras'), where('status', '==', 'ativa'));
-      const snap = await getDocs(q);
-      setObras(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
+      // Firestore disabled for now as per request
+      setObras([]);
     }
     fetchObras();
   }, []);

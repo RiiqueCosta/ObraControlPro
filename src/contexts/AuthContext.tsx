@@ -19,33 +19,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Fetch or create profile
-        const profileRef = doc(db, 'users', firebaseUser.uid);
-        const profileSnap = await getDoc(profileRef);
-        
-        if (profileSnap.exists()) {
-          setProfile(profileSnap.data() as UserProfile);
-        } else {
-          // Check if this is the first user in the system
-          const usersSnap = await getDocs(query(collection(db, 'users'), limit(1)));
-          const isFirstUser = usersSnap.empty;
-
-          const newProfile: UserProfile = {
-            id: firebaseUser.uid,
-            nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
-            email: firebaseUser.email || '',
-            role: isFirstUser ? 'admin' : 'user', 
-            ativo: true,
-            criadoEm: serverTimestamp()
-          };
-          
-          await setDoc(profileRef, newProfile);
-          setProfile(newProfile);
-        }
+        // Mock profile from Auth data to avoid Firestore dependency for now
+        const mockProfile: UserProfile = {
+          id: firebaseUser.uid,
+          nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
+          email: firebaseUser.email || '',
+          role: 'admin', // Default to admin for the current user in this phase
+          ativo: true,
+          criadoEm: new Date() as any // Simplified for UI
+        };
+        setProfile(mockProfile);
       } else {
         setProfile(null);
       }

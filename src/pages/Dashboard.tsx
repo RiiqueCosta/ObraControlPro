@@ -37,46 +37,10 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Firestore disabled for now as per request
     async function fetchData() {
-      try {
-        // Stats: Obras Ativas
-        const obrasQuery = query(collection(db, 'obras'), where('status', '==', 'ativa'));
-        const obrasSnap = await getDocs(obrasQuery);
-        
-        // Stats: Lancamentos Mes
-        const monthStart = startOfMonth(new Date());
-        const lancQuery = query(
-          collection(db, 'lancamentos'), 
-          where('data', '>=', format(monthStart, 'yyyy-MM-dd'))
-        );
-        const lancSnap = await getDocs(lancQuery);
-
-        // Stats: Usuarios
-        const usersQuery = query(collection(db, 'users'), where('ativo', '==', true));
-        const usersSnap = await getDocs(usersQuery);
-
-        // Recent Lancamentos
-        const recentQuery = query(
-          collection(db, 'lancamentos'),
-          orderBy('criadoEm', 'desc'),
-          limit(5)
-        );
-        const recentSnap = await getDocs(recentQuery);
-
-        setStats({
-          obrasAtivas: obrasSnap.size,
-          lancamentosMes: lancSnap.size,
-          usuariosAtivos: usersSnap.size
-        });
-
-        setRecentLancamentos(recentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lancamento)));
-      } catch (error) {
-        console.error("Erro ao carregar dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-
     fetchData();
   }, []);
 

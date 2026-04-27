@@ -42,21 +42,13 @@ export function Lancamentos() {
   }, []);
 
   async function fetchObras() {
-    const snap = await getDocs(collection(db, 'obras'));
-    setObrasList(snap.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })));
+    // Firestore disabled for now as per request
+    setObrasList([]);
   }
 
   async function fetchLancamentos() {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'lancamentos'), orderBy('data', 'desc'), orderBy('criadoEm', 'desc'));
-      const snap = await getDocs(q);
-      setLancamentos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lancamento)));
-    } catch (error) {
-      console.error("Erro ao buscar lançamentos:", error);
-    } finally {
-      setLoading(false);
-    }
+    // Firestore disabled for now as per request
+    setLoading(false);
   }
 
   const handleDelete = async (e: React.MouseEvent, item: Lancamento) => {

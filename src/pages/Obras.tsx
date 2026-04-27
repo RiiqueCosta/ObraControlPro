@@ -59,16 +59,8 @@ export function Obras() {
   }, [searchParams]);
 
   async function fetchObras() {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'obras'), orderBy('criadoEm', 'desc'));
-      const querySnapshot = await getDocs(q);
-      setObras(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
-    } catch (error) {
-      console.error("Erro ao buscar obras:", error);
-    } finally {
-      setLoading(false);
-    }
+    // Firestore disabled for now as per request
+    setLoading(false);
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

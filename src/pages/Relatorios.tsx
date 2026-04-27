@@ -34,11 +34,9 @@ export function Relatorios() {
 
   useEffect(() => {
     async function loadData() {
-      const obrasSnap = await getDocs(collection(db, 'obras'));
-      setObras(obrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
-      
-      const usersSnap = await getDocs(collection(db, 'users'));
-      setUsuarios(usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)));
+      // Firestore disabled for now as per request
+      setObras([]);
+      setUsuarios([]);
     }
     loadData();
   }, []);

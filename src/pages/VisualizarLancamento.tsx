@@ -36,20 +36,8 @@ export function VisualizarLancamento() {
 
   useEffect(() => {
     async function fetchLancamento() {
-      if (!id) return;
-      try {
-        const snap = await getDoc(doc(db, 'lancamentos', id));
-        if (snap.exists()) {
-          setLancamento({ id: snap.id, ...snap.data() } as Lancamento);
-        } else {
-          alert("Lançamento não encontrado.");
-          navigate('/lancamentos');
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
+      // Firestore disabled for now as per request
+      setLoading(false);
     }
     fetchLancamento();
   }, [id]);
