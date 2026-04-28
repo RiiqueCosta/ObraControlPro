@@ -1,27 +1,28 @@
-# Security Specification - ObraControl
+# Security Specification - ObraControl (Isolated Data Model)
 
 ## Data Invariants
-1. A launch (`lancamento`) must belong to an existing active `obra`.
-2. Total employees (`totalFuncionarios`) must be the sum of the `efetivo` list quantities.
-3. Users can only edit/delete their own launches unless they are admins.
-4. Only admins can manage the `obras` collection and user roles.
+1. A user profile must match the authentication UID.
+2. A construction site (`obra`) must belong to the user who created it (`criadoPor == request.auth.uid`).
+3. A daily log (`lancamento`) must belong to the user who created it and reference an `obra` they own.
+4. Users cannot access, read, list, or write data belonging to other users.
 
 ## Dirty Dozen Payloads (Rejection Targets)
-1. Launch with negative `totalFuncionarios`.
-2. Launch with a spoofed `criadoPor` ID.
-3. Update to an `obra` from a non-admin account.
-4. Update to a terminal `status` (e.g. 'finalizada') followed by another update from a non-admin.
-5. Injecting a 2MB string into `observacoes`.
-6. Creating a launch for a non-existent `obra` ID.
-7. Modifying `criadoEm` after creation.
-8. Escalating own role to 'admin' via profile update.
-9. Deleting another user's launch as a 'user'.
-10. Creating a user profile with `ativo: true` and `role: admin` directly.
-11. Large array of `fotos` (> 20) to exhaust storage/cost.
-12. Launch with a non-matching server timestamp for `atualizadoEm`.
+1. **Identity Spoofing**: Creating an `obra` with a `criadoPor` field that doesn't match the authenticated user.
+2. **Cross-User Read**: Attempting to `get` or `list` an `obra` or `lancamento` owned by another UID.
+3. **Ghost Update**: Attempting to update another user's `obra` by guessing the ID.
+4. **ID Poisoning**: Injecting path variables with IDs larger than 128 characters or with malicious characters.
+5. **PII Leak**: An authenticated user attempting to read the private details of another user's profile.
+6. **Schema Break**: Sending a `lancamento` with a string where an array of `servicos` is expected.
+7. **Size Attack**: Sending a 1MB string in the `observacoes` field.
+8. **Immutability Breach**: Attempting to change the `criadoPor` field after an `obra` has been created.
+9. **Query Scrape**: Attempting a list query on `obras` without a `where('criadoPor', '==', uid)` clause (the rules must prevent this, not the query).
+10. **Timestamp Fraud**: Providing a client-side timestamp instead of using `request.time` for `criadoEm`.
+11. **Relational Sync Failure**: Creating a `lancamento` for an `obra` that doesn't exist or belongs to another user.
+12. **Orphan Write**: Deleting an `obra` while leaving its `lancamentos` behind (though delete cascading is hard in rules, we can block the write if the parent is missing in some contexts, but usually we just deny the read of orphans if parent check is enforced).
 
 ## Security Rules Implementation Strategy
-- Use `isValidId` for all path variables.
-- Use `isAdmin()` check based on a document read in `/users/`.
-- Strict type and size checks for every field.
-- `affectedKeys().hasOnly()` for granular updates.
+- **Master Gate**: Every access to `/obras/` and `/lancamentos/` MUST check `resource.data.criadoPor == request.auth.uid`.
+- **Validation Blueprints**: Standalone `isValidUser`, `isValidObra`, and `isValidLancamento` functions.
+- **Strict Keys**: Use `keys().hasAll()` and `size()` checks on creation to prevent shadow fields.
+- **Action-Based Updates**: Granular `affectedKeys().hasOnly()` gates for specific field changes.
+- **Secure List Queries**: `allow list` MUST evaluate `resource.data.criadoPor == request.auth.uid`.

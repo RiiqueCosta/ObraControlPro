@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../lib/mockDb';
+import { collection, getDocs, updateDoc, doc, query, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Users as UsersIcon, 
@@ -30,8 +31,9 @@ export function Usuarios() {
   async function fetchUsers() {
     setLoading(true);
     try {
-      const allUsers = mockDb.getAll('users');
-      setUsers(allUsers.sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()));
+      const q = query(collection(db, 'users'), orderBy('criadoEm', 'desc'));
+      const snap = await getDocs(q);
+      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)));
     } catch (err) {
       console.error(err);
     } finally {
@@ -42,7 +44,7 @@ export function Usuarios() {
   const toggleStatus = async (user: UserProfile) => {
     if (user.id === myProfile?.id) return alert("Você não pode desativar a si mesmo.");
     try {
-      mockDb.update('users', user.id, {
+      await updateDoc(doc(db, 'users', user.id), {
         ativo: !user.ativo
       });
       fetchUsers();
@@ -55,7 +57,7 @@ export function Usuarios() {
     if (user.id === myProfile?.id) return alert("Você não pode alterar seu próprio nível de acesso.");
     const newRole = user.role === 'admin' ? 'user' : 'admin';
     try {
-      mockDb.update('users', user.id, {
+      await updateDoc(doc(db, 'users', user.id), {
         role: newRole
       });
       fetchUsers();

@@ -19,28 +19,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Use localStorage for profile as requested "no Firestore for now"
-        const profiles = JSON.parse(localStorage.getItem('users') || '[]');
-        let userProfile = profiles.find((p: any) => p.id === firebaseUser.uid);
-        
-        if (!userProfile) {
-          const isFirstUser = profiles.length === 0;
-          userProfile = {
-            id: firebaseUser.uid,
-            nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
-            email: firebaseUser.email || '',
-            role: isFirstUser ? 'admin' : 'user', 
-            ativo: true,
-            criadoEm: new Date().toISOString()
-          };
-          profiles.push(userProfile);
-          localStorage.setItem('users', JSON.stringify(profiles));
+        try {
+          const profileRef = doc(db, 'users', firebaseUser.uid);
+          const profileSnap = await getDoc(profileRef);
+          
+          if (profileSnap.exists()) {
+            setProfile(profileSnap.data() as UserProfile);
+          } else {
+            let isFirstUser = false;
+            try {
+              // This might fail if rules are strict
+              const usersSnap = await getDocs(query(collection(db, 'users'), limit(1)));
+              isFirstUser = usersSnap.empty;
+            } catch (e) {
+              console.warn("Could not check for other users, defaulting to 'user' role.");
+            }
+
+            const newProfile: UserProfile = {
+              id: firebaseUser.uid,
+              nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
+              email: firebaseUser.email || '',
+              role: (isFirstUser || firebaseUser.email?.includes('luizcosta8604')) ? 'admin' : 'user', 
+              ativo: true,
+              criadoEm: serverTimestamp()
+            };
+            
+            await setDoc(profileRef, newProfile);
+            setProfile(newProfile);
+          }
+        } catch (error) {
+          console.error("Error fetching/creating profile:", error);
         }
-        setProfile(userProfile);
       } else {
         setProfile(null);
       }

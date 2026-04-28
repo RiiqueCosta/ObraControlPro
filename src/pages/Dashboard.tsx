@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../lib/mockDb';
+import { 
+  collection, 
+  query, 
+  getDocs, 
+  limit, 
+  orderBy, 
+  where 
+} from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   HardHat, 
@@ -31,30 +39,49 @@ export function Dashboard() {
     async function fetchData() {
       try {
         // Stats: Obras Ativas
-        const obrasAtivas = mockDb.query('obras', 'status', '==', 'ativa');
+        const obrasQuery = query(
+          collection(db, 'obras'), 
+          where('criadoPor', '==', auth.currentUser?.uid)
+        );
+        const obrasSnap = await getDocs(obrasQuery);
+        const activeObras = obrasSnap.docs.filter(d => d.data().status === 'ativa');
         
         // Stats: Lancamentos Mes
         const monthStart = startOfMonth(new Date());
-        const lancamentosMes = mockDb.query(
-          'lancamentos', 
-          'data', 
-          '>=', 
-          format(monthStart, 'yyyy-MM-dd')
+        const monthStartStr = format(monthStart, 'yyyy-MM-dd');
+        const lancQuery = query(
+          collection(db, 'lancamentos'), 
+          where('criadoPor', '==', auth.currentUser?.uid)
         );
+        const allUserLancSnap = await getDocs(lancQuery);
+        const lancamentosMes = allUserLancSnap.docs.filter(d => d.data().data >= monthStartStr);
 
         // Stats: Usuarios
-        const usuariosAtivos = mockDb.query('users', 'ativo', '==', true);
+        let activeUsers = 0;
+        if (profile?.role === 'admin') {
+          try {
+            const usersQuery = query(collection(db, 'users'), where('ativo', '==', true));
+            const usersSnap = await getDocs(usersQuery);
+            activeUsers = usersSnap.size;
+          } catch (e) {
+            console.warn("Could not fetch active users:", e);
+          }
+        }
 
         // Recent Lancamentos
-        const allLancamentos = mockDb.getAll('lancamentos');
-        const recent = allLancamentos
-          .sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+        const recent = allUserLancSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))
+          .sort((a, b) => {
+            const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm);
+            const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm);
+            return dateB.getTime() - dateA.getTime();
+          })
           .slice(0, 5);
 
         setStats({
-          obrasAtivas: obrasAtivas.length,
+          obrasAtivas: activeObras.length,
           lancamentosMes: lancamentosMes.length,
-          usuariosAtivos: usuariosAtivos.length
+          usuariosAtivos: activeUsers || (profile?.ativo ? 1 : 0)
         });
 
         setRecentLancamentos(recent);

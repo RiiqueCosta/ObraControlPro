@@ -1,29 +1,32 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // -------------------------------------------------------------------------
-    // GLOBALS & HELPERS
-    // -------------------------------------------------------------------------
     
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
+
+    // --- Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isEmailVerified() {
-      // strictly check email verification as per instructions
-      return request.auth.token.email_verified == true;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && request.auth.token.email.matches('(?i).*luizcosta8604.*') && request.auth.token.email_verified == true)
+      );
     }
 
     function isValidId(id) {
@@ -38,92 +41,86 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // -------------------------------------------------------------------------
-    // USERS COLLECTION
-    // -------------------------------------------------------------------------
-
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
-      allow update: if isSignedIn() && (
-        (isAdmin() && isEmailVerified() && isValidUser(incoming())) ||
-        (isOwner(userId) && isEmailVerified() && incoming().diff(existing()).affectedKeys().hasOnly(['nome']) && isValidUser(incoming()))
-      );
-      allow delete: if isAdmin() && isEmailVerified();
-    }
+    // --- Entity Validators ---
 
     function isValidUser(data) {
-      return data.keys().hasAll(['id', 'nome', 'email', 'role', 'ativo', 'criadoEm'])
-        && data.id == request.auth.uid
-        && data.nome is string && data.nome.size() <= 100
-        && data.email is string && data.email.size() <= 100
-        && data.role in ['admin', 'user']
-        && data.ativo is bool
-        // If updating, role cannot be changed by user themselves unless they are already admin
-        && (data.role == (resource == null ? 'user' : existing().role) || isAdmin())
-        && data.criadoEm is timestamp;
-    }
-
-    // -------------------------------------------------------------------------
-    // OBRAS COLLECTION
-    // -------------------------------------------------------------------------
-
-    match /obras/{obraId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidObra(incoming());
-      allow update: if isSignedIn() && isValidObra(incoming());
-      allow delete: if isAdmin();
+      return data.keys().hasAll(['id', 'nome', 'email', 'role', 'ativo', 'criadoEm']) &&
+             data.keys().size() == 6 &&
+             data.id == request.auth.uid &&
+             data.nome is string && data.nome.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             (data.role == 'user' || (data.role == 'admin' && data.email.matches('(?i).*luizcosta8604.*'))) &&
+             data.ativo is bool &&
+             (data.criadoEm == request.time || data.criadoEm is timestamp);
     }
 
     function isValidObra(data) {
-      let requiredFields = ['nome', 'cliente', 'status', 'dataInicio', 'criadoPor', 'criadoEm'];
-      return data.keys().hasAll(requiredFields)
-        && data.nome is string && data.nome.size() <= 200
-        && data.cliente is string && data.cliente.size() <= 150
-        && data.status in ['ativa', 'pausada', 'finalizada']
-        && data.dataInicio is string && data.dataInicio.size() == 10
-        && (resource == null ? data.criadoPor == request.auth.uid : data.criadoPor == existing().criadoPor)
-        && data.criadoEm is timestamp
-        // Optional fields
-        && (!data.keys().hasAny(['endereco']) || data.endereco is string)
-        && (!data.keys().hasAny(['observacoes']) || data.observacoes is string)
-        && (!data.keys().hasAny(['atualizadoEm']) || data.atualizadoEm == request.time);
-    }
-
-    // -------------------------------------------------------------------------
-    // LANCAMENTOS COLLECTION
-    // -------------------------------------------------------------------------
-
-    match /lancamentos/{lancamentoId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isEmailVerified() && isValidLancamento(incoming()) && exists(/databases/$(database)/documents/obras/$(incoming().obraId));
-      allow update: if isSignedIn() && isEmailVerified() && (
-        (isAdmin() && isValidLancamento(incoming())) ||
-        (isOwner(existing().criadoPor) && isValidLancamento(incoming()))
-      );
-      allow delete: if isSignedIn() && isEmailVerified() && (isAdmin() || isOwner(existing().criadoPor));
+      return data.keys().hasAll(['id', 'nome', 'status', 'dataInicio', 'criadoPor', 'criadoEm']) &&
+             data.keys().size() >= 6 && data.keys().size() <= 12 &&
+             data.id is string && isValidId(data.id) &&
+             data.nome is string && data.nome.size() <= 255 &&
+             data.status in ['ativa', 'pausada', 'finalizada'] &&
+             data.dataInicio is string && data.dataInicio.size() >= 8 &&
+             data.criadoPor == request.auth.uid &&
+             (data.criadoEm == request.time || data.criadoEm is timestamp);
     }
 
     function isValidLancamento(data) {
-      let requiredFields = ['obraId', 'obraNome', 'data', 'servicos', 'efetivo', 'totalFuncionarios', 'criadoPor', 'criadoEm'];
-      return data.keys().hasAll(requiredFields)
-        && data.obraId is string
-        && data.obraNome is string && data.obraNome.size() <= 200
-        && data.data is string && data.data.size() == 10
-        && data.servicos is list && data.servicos.size() <= 100
-        && data.efetivo is list && data.efetivo.size() <= 100
-        && data.totalFuncionarios is number && data.totalFuncionarios >= 0
-        && (resource == null ? data.criadoPor == request.auth.uid : data.criadoPor == existing().criadoPor)
-        && data.criadoEm is timestamp
-        // Optional/additional fields validation
-        && (!data.keys().hasAny(['climaManha']) || data.climaManha is string)
-        && (!data.keys().hasAny(['climaTarde']) || data.climaTarde is string)
-        && (!data.keys().hasAny(['fotos']) || data.fotos is list)
-        && (!data.keys().hasAny(['empresasTerceirizadas']) || data.empresasTerceirizadas is string)
-        && (!data.keys().hasAny(['observacoes']) || data.observacoes is string)
-        && (!data.keys().hasAny(['criadoPorNome']) || data.criadoPorNome is string)
-        // Verify current update timestamp if present
-        && (!data.keys().hasAny(['atualizadoEm']) || data.atualizadoEm == request.time);
+      return data.keys().hasAll(['id', 'obraId', 'data', 'criadoPor', 'criadoEm']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 25 &&
+             data.id is string && isValidId(data.id) &&
+             data.obraId is string && isValidId(data.obraId) &&
+             data.data is string && data.data.size() >= 8 &&
+             data.criadoPor == request.auth.uid &&
+             (data.criadoEm == request.time || data.criadoEm is timestamp);
+    }
+
+    // --- Collection Routes ---
+
+    // Users: Can read their own, admins can read all
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'email', 'ativo']);
+      allow list: if isAdmin() || isOwner(userId);
+    }
+
+    // Obras: Isolated by criadoPor, Admins can see all
+    match /obras/{obraId} {
+      allow get: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.criadoPor == request.auth.uid || isAdmin());
+      
+      allow create: if isVerified() && isValidObra(incoming());
+      
+      allow update: if isVerified() && 
+                    (existing().criadoPor == request.auth.uid || isAdmin()) && 
+                    isValidObra(incoming()) &&
+                    incoming().criadoPor == existing().criadoPor &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'endereco', 'cliente', 'status', 'dataInicio', 'observacoes', 'atualizadoEm']);
+      
+      allow delete: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
+    }
+
+    // Lancamentos: Isolated by criadoPor, Admins can see all
+    match /lancamentos/{lancamentoId} {
+      allow get: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.criadoPor == request.auth.uid || isAdmin());
+      
+      allow create: if isVerified() && isValidLancamento(incoming()) &&
+                    (isAdmin() || get(/databases/$(database)/documents/obras/$(incoming().obraId)).data.criadoPor == request.auth.uid);
+      
+      allow update: if isVerified() && 
+                    (existing().criadoPor == request.auth.uid || isAdmin()) && 
+                    isValidLancamento(incoming()) &&
+                    incoming().criadoPor == existing().criadoPor &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'data', 'servicos', 'climaManha', 'climaTarde', 'efetivo', 
+                      'totalFuncionarios', 'empresasTerceirizadas', 'observacoes', 
+                      'fotos', 'atualizadoEm', 'obraNome', 'id', 'obraId', 'criadoEm', 'criadoPor'
+                    ]);
+      
+      allow delete: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
     }
   }
 }

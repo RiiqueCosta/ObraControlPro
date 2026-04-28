@@ -1,6 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../lib/mockDb';
-import { auth } from '../lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  updateDoc, 
+  doc, 
+  deleteDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  where,
+  setDoc
+} from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -49,8 +62,19 @@ export function Obras() {
   async function fetchObras() {
     setLoading(true);
     try {
-      const data = mockDb.getAll('obras');
-      setObras(data.sort((a: any, b: any) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()));
+      const q = query(
+        collection(db, 'obras'), 
+        where('criadoPor', '==', auth.currentUser?.uid)
+      );
+      const querySnapshot = await getDocs(q);
+      const sortedObras = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Obra))
+        .sort((a, b) => {
+          const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm);
+          const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm);
+          return dateB.getTime() - dateA.getTime();
+        });
+      setObras(sortedObras);
     } catch (error) {
       console.error("Erro ao buscar obras:", error);
     } finally {
@@ -64,13 +88,17 @@ export function Obras() {
     setLoading(true);
     try {
       if (editingObra) {
-        mockDb.update('obras', editingObra.id, {
+        await updateDoc(doc(db, 'obras', editingObra.id), {
           ...formData,
+          atualizadoEm: serverTimestamp()
         });
       } else {
-        mockDb.save('obras', {
+        const newObraRef = doc(collection(db, 'obras'));
+        await setDoc(newObraRef, {
           ...formData,
+          id: newObraRef.id,
           criadoPor: profile?.id || auth.currentUser?.uid,
+          criadoEm: serverTimestamp()
         });
       }
       setShowModal(false);
@@ -85,7 +113,7 @@ export function Obras() {
       });
       fetchObras();
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, editingObra ? OperationType.UPDATE : OperationType.CREATE, editingObra ? `obras/${editingObra.id}` : 'obras');
     } finally {
       setLoading(false);
     }
@@ -108,10 +136,10 @@ export function Obras() {
     if (!confirm("Tem certeza que deseja excluir esta obra?")) return;
     
     try {
-      mockDb.delete('obras', id);
+      await deleteDoc(doc(db, 'obras', id));
       fetchObras();
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, OperationType.DELETE, `obras/${id}`);
     }
   };
 

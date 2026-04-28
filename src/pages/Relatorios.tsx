@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { mockDb } from '../lib/mockDb';
+import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
 import { 
   FileText, 
   Search, 
@@ -15,9 +16,11 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAuth } from '../contexts/AuthContext';
 import { Lancamento, Obra, UserProfile } from '../types';
 
 export function Relatorios() {
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
@@ -34,11 +37,17 @@ export function Relatorios() {
   useEffect(() => {
     async function loadData() {
       try {
-        const obrasData = mockDb.getAll('obras');
-        setObras(obrasData);
+        const obrasQ = query(collection(db, 'obras'), where('criadoPor', '==', auth.currentUser?.uid));
+        const obrasSnap = await getDocs(obrasQ);
+        setObras(obrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
         
-        const usersData = mockDb.getAll('users');
-        setUsuarios(usersData);
+        try {
+          const usersSnap = await getDocs(collection(db, 'users'));
+          setUsuarios(usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)));
+        } catch (e) {
+          console.warn("Unable to list all users, filtering restricted to current user.");
+          if (profile) setUsuarios([profile]);
+        }
       } catch (err) {
         console.error("Erro ao carregar dados para relatórios:", err);
       }
@@ -50,19 +59,27 @@ export function Relatorios() {
     e.preventDefault();
     setLoading(true);
     try {
-      let res = mockDb.getAll('lancamentos');
-      
-      // Filter by date
-      res = res.filter((l: any) => l.data >= filtros.dataInicio && l.data <= filtros.dataFim);
+      let q = query(
+        collection(db, 'lancamentos'),
+        where('criadoPor', '==', auth.currentUser?.uid)
+      );
+
+      const snap = await getDocs(q);
+      let res = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))
+        .filter(l => l.data >= filtros.dataInicio && l.data <= filtros.dataFim);
       
       if (filtros.obraId !== 'all') {
-        res = res.filter((l: any) => l.obraId === filtros.obraId);
+        res = res.filter(l => l.obraId === filtros.obraId);
       }
       if (filtros.usuarioId !== 'all') {
-        res = res.filter((l: any) => l.criadoPor === filtros.usuarioId);
+        res = res.filter(l => l.criadoPor === filtros.usuarioId);
       }
       
-      setLancamentos(res.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()));
+      // Sort in memory
+      res.sort((a, b) => b.data.localeCompare(a.data));
+      
+      setLancamentos(res);
     } catch (error) {
       console.error(error);
     } finally {

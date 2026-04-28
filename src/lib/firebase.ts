@@ -9,5 +9,14 @@ export const db = getFirestore(app); // Default database
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// Connectivity check temporarily disabled while transitioning to new project
-// async function testConnection() { ... }
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration or internet connection.");
+    }
+  }
+}
+
+testConnection();

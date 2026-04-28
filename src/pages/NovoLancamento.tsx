@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from '../lib/firebase';
-import { mockDb } from '../lib/mockDb';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  where, 
+  serverTimestamp,
+  doc,
+  setDoc
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, auth } from '../lib/firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -46,8 +57,9 @@ export function NovoLancamento() {
   useEffect(() => {
     async function fetchObras() {
       try {
-        const activeObras = mockDb.query('obras', 'status', '==', 'ativa');
-        setObras(activeObras);
+        const q = query(collection(db, 'obras'), where('status', '==', 'ativa'));
+        const snap = await getDocs(q);
+        setObras(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
       } catch (err) {
         console.error("Erro ao buscar obras:", err);
       }
@@ -95,12 +107,21 @@ export function NovoLancamento() {
     
     setLoading(true);
     try {
-      // Storage disabled for now - simulate with placeholders
-      const fotoUrls = fotosPreviews; // Just use previews/blobs for now since storage is disabled
+      // 1. Upload Fotos
+      const fotoUrls = [];
+      for (const file of fotosFiles) {
+        const storageRef = ref(storage, `fotos-obras/${Date.now()}-${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        fotoUrls.push(url);
+      }
 
       const selectedObra = obras.find(o => o.id === obraId);
 
-      mockDb.save('lancamentos', {
+      // 2. Save Lancamento
+      const newLancRef = doc(collection(db, 'lancamentos'));
+      await setDoc(newLancRef, {
+        id: newLancRef.id,
         obraId,
         obraNome: selectedObra?.nome || 'Obra Desconhecida',
         data,
@@ -114,15 +135,18 @@ export function NovoLancamento() {
         fotos: fotoUrls,
         criadoPor: auth.currentUser?.uid,
         criadoPorNome: profile?.nome || auth.currentUser?.email,
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp()
       });
 
       navigate('/lancamentos');
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, OperationType.WRITE, 'lancamentos');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">

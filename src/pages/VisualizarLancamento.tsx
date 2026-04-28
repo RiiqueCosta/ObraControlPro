@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { mockDb } from '../lib/mockDb';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   ChevronLeft, 
@@ -37,9 +38,9 @@ export function VisualizarLancamento() {
     async function fetchLancamento() {
       if (!id) return;
       try {
-        const item = mockDb.getOne('lancamentos', id);
-        if (item) {
-          setLancamento(item);
+        const snap = await getDoc(doc(db, 'lancamentos', id));
+        if (snap.exists()) {
+          setLancamento({ id: snap.id, ...snap.data() } as Lancamento);
         } else {
           alert("Lançamento não encontrado.");
           navigate('/lancamentos');
@@ -59,9 +60,15 @@ export function VisualizarLancamento() {
     if (!canDelete) return alert("Você não tem permissão.");
     
     if (confirm("Tem certeza que deseja excluir?")) {
-      mockDb.delete('lancamentos', id);
+      await deleteDoc(doc(db, 'lancamentos', id));
       navigate('/lancamentos');
     }
+  };
+
+  const formatCreatedDate = (criadoEm: any) => {
+    if (!criadoEm) return '';
+    const date = criadoEm.toDate ? criadoEm.toDate() : new Date(criadoEm);
+    return format(date, "dd/MM/yy 'às' HH:mm");
   };
 
   if (loading) return (
@@ -166,7 +173,7 @@ export function VisualizarLancamento() {
                   <div className="text-lg font-bold text-neutral-900">{lancamento.criadoPorNome}</div>
                   <div className="text-sm text-neutral-500 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    Enviado em {format(new Date(lancamento.criadoEm), "dd/MM/yy 'às' HH:mm")}
+                    Enviado em {formatCreatedDate(lancamento.criadoEm)}
                   </div>
                 </div>
               </div>

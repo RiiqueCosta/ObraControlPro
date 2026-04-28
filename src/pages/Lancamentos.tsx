@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { mockDb } from '../lib/mockDb';
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy, 
+  where,
+  deleteDoc,
+  doc
+} from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -34,8 +43,9 @@ export function Lancamentos() {
 
   async function fetchObras() {
     try {
-      const snap = mockDb.getAll('obras');
-      setObrasList(snap.map((doc: any) => ({ id: doc.id, nome: doc.nome })));
+      const q = query(collection(db, 'obras'), where('criadoPor', '==', auth.currentUser?.uid));
+      const snap = await getDocs(q);
+      setObrasList(snap.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })));
     } catch (error) {
       console.error("Erro ao buscar obras:", error);
     }
@@ -44,8 +54,21 @@ export function Lancamentos() {
   async function fetchLancamentos() {
     setLoading(true);
     try {
-      const snap = mockDb.getAll('lancamentos');
-      setLancamentos(snap.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()));
+      const q = query(
+        collection(db, 'lancamentos'), 
+        where('criadoPor', '==', auth.currentUser?.uid)
+      );
+      const snap = await getDocs(q);
+      const sortedLancamentos = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))
+        .sort((a, b) => {
+          // Sort by data first, then created date
+          if (a.data !== b.data) return b.data.localeCompare(a.data);
+          const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm);
+          const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm);
+          return dateB.getTime() - dateA.getTime();
+        });
+      setLancamentos(sortedLancamentos);
     } catch (error) {
       console.error("Erro ao buscar lançamentos:", error);
     } finally {
@@ -63,7 +86,7 @@ export function Lancamentos() {
     if (!confirm("Excluir este lançamento permanentemente?")) return;
     
     try {
-      mockDb.delete('lancamentos', item.id);
+      await deleteDoc(doc(db, 'lancamentos', item.id));
       fetchLancamentos();
     } catch (error) {
       console.error("Erro ao excluir:", error);
@@ -172,7 +195,9 @@ export function Lancamentos() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-neutral-700 font-medium">{item.criadoPorNome}</div>
-                      <div className="text-[10px] text-neutral-400 italic">Enviado em {format(new Date(item.criadoEm), 'HH:mm')}</div>
+                      <div className="text-[10px] text-neutral-400 italic">
+                        Enviado em {item.criadoEm && (item.criadoEm.toDate ? format(item.criadoEm.toDate(), 'HH:mm') : format(new Date(item.criadoEm), 'HH:mm'))}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

@@ -5,10 +5,13 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 import firebaseRulesPlugin from '@firebase/eslint-plugin-security-rules';
 
-export default tseslint.config(
-  { ignores: ['dist'] },
+export default [
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    ignores: ['dist/**/*']
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2020,
@@ -26,13 +29,5 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    files: ['firestore.rules'],
-    plugins: {
-      'firebase-security': firebaseRulesPlugin,
-    },
-    rules: {
-      ...firebaseRulesPlugin.configs['flat/recommended'].rules,
-    },
-  }
-);
+  firebaseRulesPlugin.configs['flat/recommended']
+];

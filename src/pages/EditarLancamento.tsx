@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { mockDb } from '../lib/mockDb';
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  serverTimestamp,
+  doc,
+  updateDoc,
+  getDoc
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
@@ -44,11 +56,13 @@ export function EditarLancamento() {
     async function fetchData() {
       if (!id) return;
       try {
-        const obrasSnap = mockDb.query('obras', 'status', '==', 'ativa');
-        setObras(obrasSnap);
+        const obrasSnap = await getDocs(query(collection(db, 'obras'), where('status', '==', 'ativa')));
+        setObras(obrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
 
-        const l = mockDb.getOne('lancamentos', id);
-        if (l) {
+        const lancSnap = await getDoc(doc(db, 'lancamentos', id));
+        if (lancSnap.exists()) {
+          const l = lancSnap.data() as Lancamento;
+          
           // Permission check
           if (profile && !isAdmin && l.criadoPor !== profile.id) {
             alert("Sem permissão para editar.");
@@ -117,11 +131,17 @@ export function EditarLancamento() {
     
     setSaving(true);
     try {
-      const allUrls = [...fotosUrls, ...fotosPreviews]; // Previews serve as placeholders since storage is disabled
+      const newUrls = [...fotosUrls];
+      for (const file of fotosFiles) {
+        const storageRef = ref(storage, `fotos-obras/${Date.now()}-${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        newUrls.push(url);
+      }
 
       const selectedObra = obras.find(o => o.id === obraId);
 
-      mockDb.update('lancamentos', id, {
+      await updateDoc(doc(db, 'lancamentos', id), {
         obraId,
         obraNome: selectedObra?.nome || 'Obra Desconhecida',
         data,
@@ -132,12 +152,13 @@ export function EditarLancamento() {
         totalFuncionarios,
         empresasTerceirizadas,
         observacoes,
-        fotos: allUrls,
+        fotos: newUrls,
+        atualizadoEm: serverTimestamp()
       });
 
       navigate(`/lancamentos/${id}`);
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, OperationType.WRITE, `lancamentos/${id}`);
     } finally {
       setSaving(false);
     }
