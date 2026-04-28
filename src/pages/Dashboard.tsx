@@ -37,22 +37,21 @@ export function Dashboard() {
 
   useEffect(() => {
     async function fetchData() {
+      if (!auth.currentUser) return;
+      
       try {
-        // Stats: Obras Ativas
-        const obrasQuery = query(
-          collection(db, 'obras'), 
-          where('criadoPor', '==', auth.currentUser?.uid)
-        );
+        setLoading(true);
+        // Queries baseadas no perfil
+        let obrasQuery = query(collection(db, 'obras'));
+        let lancQuery = query(collection(db, 'lancamentos'));
+
         const obrasSnap = await getDocs(obrasQuery);
         const activeObras = obrasSnap.docs.filter(d => d.data().status === 'ativa');
         
         // Stats: Lancamentos Mes
         const monthStart = startOfMonth(new Date());
         const monthStartStr = format(monthStart, 'yyyy-MM-dd');
-        const lancQuery = query(
-          collection(db, 'lancamentos'), 
-          where('criadoPor', '==', auth.currentUser?.uid)
-        );
+        
         const allUserLancSnap = await getDocs(lancQuery);
         const lancamentosMes = allUserLancSnap.docs.filter(d => d.data().data >= monthStartStr);
 
@@ -72,8 +71,8 @@ export function Dashboard() {
         const recent = allUserLancSnap.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))
           .sort((a, b) => {
-            const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm);
-            const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm);
+            const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm || 0);
+            const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm || 0);
             return dateB.getTime() - dateA.getTime();
           })
           .slice(0, 5);
@@ -92,8 +91,10 @@ export function Dashboard() {
       }
     }
 
-    fetchData();
-  }, []);
+    if (profile) {
+      fetchData();
+    }
+  }, [profile]);
 
   const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
     <div className="bg-white p-6 rounded-2xl border border-neutral-100 shadow-sm hover:shadow-md transition-shadow">

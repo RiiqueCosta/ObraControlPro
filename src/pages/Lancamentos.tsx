@@ -37,13 +37,16 @@ export function Lancamentos() {
   const [obrasList, setObrasList] = useState<{id: string, nome: string}[]>([]);
 
   useEffect(() => {
-    fetchLancamentos();
-    fetchObras();
-  }, []);
+    if (profile) {
+      fetchLancamentos();
+      fetchObras();
+    }
+  }, [profile]);
 
   async function fetchObras() {
+    if (!auth.currentUser) return;
     try {
-      const q = query(collection(db, 'obras'), where('criadoPor', '==', auth.currentUser?.uid));
+      const q = query(collection(db, 'obras'));
       const snap = await getDocs(q);
       setObrasList(snap.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })));
     } catch (error) {
@@ -52,12 +55,10 @@ export function Lancamentos() {
   }
 
   async function fetchLancamentos() {
+    if (!auth.currentUser) return;
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'lancamentos'), 
-        where('criadoPor', '==', auth.currentUser?.uid)
-      );
+      const q = query(collection(db, 'lancamentos'));
       const snap = await getDocs(q);
       const sortedLancamentos = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))

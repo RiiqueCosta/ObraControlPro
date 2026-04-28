@@ -36,8 +36,9 @@ export function Relatorios() {
 
   useEffect(() => {
     async function loadData() {
+      if (!profile) return;
       try {
-        const obrasQ = query(collection(db, 'obras'), where('criadoPor', '==', auth.currentUser?.uid));
+        const obrasQ = query(collection(db, 'obras'));
         const obrasSnap = await getDocs(obrasQ);
         setObras(obrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Obra)));
         
@@ -53,16 +54,14 @@ export function Relatorios() {
       }
     }
     loadData();
-  }, []);
+  }, [profile]);
 
   const handleFiltrar = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth.currentUser) return;
     setLoading(true);
     try {
-      let q = query(
-        collection(db, 'lancamentos'),
-        where('criadoPor', '==', auth.currentUser?.uid)
-      );
+      const q = query(collection(db, 'lancamentos'));
 
       const snap = await getDocs(q);
       let res = snap.docs

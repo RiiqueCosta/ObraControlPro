@@ -25,7 +25,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && request.auth.token.email.matches('(?i).*luizcosta8604.*') && request.auth.token.email_verified == true)
+        (request.auth.token.email != null && request.auth.token.email.matches('(?i).*luizcosta8604.*'))
       );
     }
 
@@ -86,32 +86,33 @@ service cloud.firestore {
       allow list: if isAdmin() || isOwner(userId);
     }
 
-    // Obras: Isolated by criadoPor, Admins can see all
+    // Obras: All users can see, only creators/admins can edit
     match /obras/{obraId} {
-      allow get: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
-      allow list: if isVerified() && (resource.data.criadoPor == request.auth.uid || isAdmin());
+      allow get, list: if isSignedIn();
       
-      allow create: if isVerified() && isValidObra(incoming());
+      allow create: if isSignedIn() && isValidObra(incoming());
       
-      allow update: if isVerified() && 
+      allow update: if isSignedIn() && 
                     (existing().criadoPor == request.auth.uid || isAdmin()) && 
                     isValidObra(incoming()) &&
                     incoming().criadoPor == existing().criadoPor &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'endereco', 'cliente', 'status', 'dataInicio', 'observacoes', 'atualizadoEm']);
       
-      allow delete: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (existing().criadoPor == request.auth.uid || isAdmin());
     }
 
-    // Lancamentos: Isolated by criadoPor, Admins can see all
+    // Lancamentos: All users can see, creators, obra owners, and admins can edit
     match /lancamentos/{lancamentoId} {
-      allow get: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
-      allow list: if isVerified() && (resource.data.criadoPor == request.auth.uid || isAdmin());
+      allow get, list: if isSignedIn();
       
-      allow create: if isVerified() && isValidLancamento(incoming()) &&
-                    (isAdmin() || get(/databases/$(database)/documents/obras/$(incoming().obraId)).data.criadoPor == request.auth.uid);
+      allow create: if isSignedIn() && isValidLancamento(incoming());
       
-      allow update: if isVerified() && 
-                    (existing().criadoPor == request.auth.uid || isAdmin()) && 
+      allow update: if isSignedIn() && 
+                    (
+                      existing().criadoPor == request.auth.uid || 
+                      isAdmin() || 
+                      get(/databases/$(database)/documents/obras/$(existing().obraId)).data.criadoPor == request.auth.uid
+                    ) && 
                     isValidLancamento(incoming()) &&
                     incoming().criadoPor == existing().criadoPor &&
                     incoming().diff(existing()).affectedKeys().hasOnly([
@@ -120,7 +121,11 @@ service cloud.firestore {
                       'fotos', 'atualizadoEm', 'obraNome', 'id', 'obraId', 'criadoEm', 'criadoPor'
                     ]);
       
-      allow delete: if isVerified() && (existing().criadoPor == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (
+        existing().criadoPor == request.auth.uid || 
+        isAdmin() || 
+        get(/databases/$(database)/documents/obras/$(existing().obraId)).data.criadoPor == request.auth.uid
+      );
     }
   }
 }

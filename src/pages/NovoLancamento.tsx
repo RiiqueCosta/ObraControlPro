@@ -56,6 +56,7 @@ export function NovoLancamento() {
 
   useEffect(() => {
     async function fetchObras() {
+      if (!profile || !auth.currentUser) return;
       try {
         const q = query(collection(db, 'obras'), where('status', '==', 'ativa'));
         const snap = await getDocs(q);
@@ -65,7 +66,7 @@ export function NovoLancamento() {
       }
     }
     fetchObras();
-  }, []);
+  }, [profile]);
 
   const handleAddServico = () => setServicos([...servicos, '']);
   const handleRemoveServico = (index: number) => setServicos(servicos.filter((_, i) => i !== index));

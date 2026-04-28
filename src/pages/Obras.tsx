@@ -52,20 +52,20 @@ export function Obras() {
   });
 
   useEffect(() => {
-    fetchObras();
+    if (profile) {
+      fetchObras();
+    }
     if (searchParams.get('novo') === 'true') {
       setShowModal(true);
       setSearchParams({}); // Clear param after opening
     }
-  }, [searchParams]);
+  }, [searchParams, profile]);
 
   async function fetchObras() {
+    if (!auth.currentUser) return;
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'obras'), 
-        where('criadoPor', '==', auth.currentUser?.uid)
-      );
+      const q = query(collection(db, 'obras'));
       const querySnapshot = await getDocs(q);
       const sortedObras = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Obra))
