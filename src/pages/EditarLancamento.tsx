@@ -63,8 +63,13 @@ export function EditarLancamento() {
         if (lancSnap.exists()) {
           const l = lancSnap.data() as Lancamento;
           
+          // Get the obra for additional owner check
+          const obraSnap = await getDoc(doc(db, 'obras', l.obraId));
+          const obraData = obraSnap.data() as Obra | undefined;
+          
           // Permission check
-          if (profile && !isAdmin && l.criadoPor !== profile.id) {
+          const isObraOwner = obraData?.criadoPor === profile?.id;
+          if (profile && !isAdmin && l.criadoPor !== profile.id && !isObraOwner) {
             alert("Sem permissão para editar.");
             navigate('/lancamentos');
             return;

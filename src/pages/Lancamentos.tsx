@@ -34,7 +34,7 @@ export function Lancamentos() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedObra, setSelectedObra] = useState('all');
-  const [obrasList, setObrasList] = useState<{id: string, nome: string}[]>([]);
+  const [obrasList, setObrasList] = useState<{id: string, nome: string, criadoPor: string}[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -48,7 +48,11 @@ export function Lancamentos() {
     try {
       const q = query(collection(db, 'obras'));
       const snap = await getDocs(q);
-      setObrasList(snap.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })));
+      setObrasList(snap.docs.map(doc => ({ 
+        id: doc.id, 
+        nome: doc.data().nome,
+        criadoPor: doc.data().criadoPor
+       })));
     } catch (error) {
       console.error("Erro ao buscar obras:", error);
     }
@@ -63,10 +67,9 @@ export function Lancamentos() {
       const sortedLancamentos = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Lancamento))
         .sort((a, b) => {
-          // Sort by data first, then created date
           if (a.data !== b.data) return b.data.localeCompare(a.data);
-          const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm);
-          const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm);
+          const dateA = a.criadoEm?.toDate?.() || new Date(a.criadoEm || 0);
+          const dateB = b.criadoEm?.toDate?.() || new Date(b.criadoEm || 0);
           return dateB.getTime() - dateA.getTime();
         });
       setLancamentos(sortedLancamentos);
@@ -81,7 +84,8 @@ export function Lancamentos() {
     e.preventDefault();
     e.stopPropagation();
     
-    const canDelete = isAdmin || item.criadoPor === profile?.id;
+    const obraOwner = obrasList.find(o => o.id === item.obraId)?.criadoPor;
+    const canDelete = isAdmin || item.criadoPor === profile?.id || obraOwner === profile?.id;
     if (!canDelete) return alert("Você não tem permissão para excluir este lançamento.");
     
     if (!confirm("Excluir este lançamento permanentemente?")) return;
@@ -95,8 +99,8 @@ export function Lancamentos() {
   };
 
   const filteredLancamentos = lancamentos.filter(item => {
-    const matchesSearch = item.obraNome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.criadoPorNome.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (item.obraNome?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (item.criadoPorNome?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesObra = selectedObra === 'all' || item.obraId === selectedObra;
     return matchesSearch && matchesObra;
   });
@@ -117,7 +121,6 @@ export function Lancamentos() {
         </Link>
       </header>
 
-      {/* Filters */}
       <div className="bg-white p-4 rounded-2xl border border-neutral-100 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-4">
         <div className="md:col-span-6 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
@@ -151,7 +154,6 @@ export function Lancamentos() {
         </div>
       </div>
 
-      {/* List */}
       {loading ? (
         <div className="flex justify-center p-12">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -170,56 +172,61 @@ export function Lancamentos() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-50">
-                {filteredLancamentos.map((item) => (
-                  <tr key={item.id} className="group hover:bg-neutral-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <Link to={`/lancamentos/${item.id}`} className="block">
-                        <div className="text-sm font-bold text-blue-600">{format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy')}</div>
-                        <div className="text-base font-bold text-neutral-900 uppercase mt-0.5">{item.obraNome}</div>
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <div className="flex items-center gap-1 text-sm font-medium text-neutral-600">
-                        <Users className="w-4 h-4 text-neutral-400" />
-                        {item.totalFuncionarios} func.
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 hidden lg:table-cell max-w-xs">
-                      <div className="flex flex-wrap gap-1">
-                        {item.servicos.slice(0, 2).map((s, i) => (
-                          <span key={i} className="text-[10px] px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded font-medium">
-                            {s}
-                          </span>
-                        ))}
-                        {item.servicos.length > 2 && <span className="text-[10px] text-neutral-400">+{item.servicos.length - 2}</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-neutral-700 font-medium">{item.criadoPorNome}</div>
-                      <div className="text-[10px] text-neutral-400 italic">
-                        Enviado em {item.criadoEm && (item.criadoEm.toDate ? format(item.criadoEm.toDate(), 'HH:mm') : format(new Date(item.criadoEm), 'HH:mm'))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link 
-                          to={`/lancamentos/${item.id}`}
-                          className="p-2 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <ChevronRight className="w-5 h-5" />
+                {filteredLancamentos.map((item) => {
+                  const obraOwner = obrasList.find(o => o.id === item.obraId)?.criadoPor;
+                  const canManage = isAdmin || item.criadoPor === profile?.id || obraOwner === profile?.id;
+                  
+                  return (
+                    <tr key={item.id} className="group hover:bg-neutral-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <Link to={`/lancamentos/${item.id}`} className="block">
+                          <div className="text-sm font-bold text-blue-600">{format(new Date(item.data + 'T12:00:00'), 'dd/MM/yyyy')}</div>
+                          <div className="text-base font-bold text-neutral-900 uppercase mt-0.5">{item.obraNome}</div>
                         </Link>
-                        {(isAdmin || item.criadoPor === profile?.id) && (
-                          <button 
-                            onClick={(e) => handleDelete(e, item)}
-                            className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell">
+                        <div className="flex items-center gap-1 text-sm font-medium text-neutral-600">
+                          <Users className="w-4 h-4 text-neutral-400" />
+                          {item.totalFuncionarios} func.
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 hidden lg:table-cell max-w-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {item.servicos.slice(0, 2).map((s, i) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded font-medium">
+                              {s}
+                            </span>
+                          ))}
+                          {item.servicos.length > 2 && <span className="text-[10px] text-neutral-400">+{item.servicos.length - 2}</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-neutral-700 font-medium">{item.criadoPorNome}</div>
+                        <div className="text-[10px] text-neutral-400 italic">
+                          Enviado em {item.criadoEm && (item.criadoEm.toDate ? format(item.criadoEm.toDate(), 'HH:mm') : format(new Date(item.criadoEm), 'HH:mm'))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link 
+                            to={`/lancamentos/${item.id}`}
+                            className="p-2 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            <ChevronRight className="w-5 h-5" />
+                          </Link>
+                          {canManage && (
+                            <button 
+                              onClick={(e) => handleDelete(e, item)}
+                              className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

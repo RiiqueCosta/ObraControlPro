@@ -61,7 +61,6 @@ service cloud.firestore {
              data.nome is string && data.nome.size() <= 255 &&
              data.status in ['ativa', 'pausada', 'finalizada'] &&
              data.dataInicio is string && data.dataInicio.size() >= 8 &&
-             data.criadoPor == request.auth.uid &&
              (data.criadoEm == request.time || data.criadoEm is timestamp);
     }
 
@@ -71,7 +70,6 @@ service cloud.firestore {
              data.id is string && isValidId(data.id) &&
              data.obraId is string && isValidId(data.obraId) &&
              data.data is string && data.data.size() >= 8 &&
-             data.criadoPor == request.auth.uid &&
              (data.criadoEm == request.time || data.criadoEm is timestamp);
     }
 
@@ -83,14 +81,14 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming()) && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'email', 'ativo']);
-      allow list: if isAdmin() || isOwner(userId);
+      allow list: if isSignedIn(); // Allow listing or searching users for selection
     }
 
     // Obras: All users can see, only creators/admins can edit
     match /obras/{obraId} {
-      allow get, list: if isSignedIn();
+      allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && isValidObra(incoming());
+      allow create: if isSignedIn() && isValidObra(incoming()) && incoming().criadoPor == request.auth.uid;
       
       allow update: if isSignedIn() && 
                     (existing().criadoPor == request.auth.uid || isAdmin()) && 
@@ -103,9 +101,9 @@ service cloud.firestore {
 
     // Lancamentos: All users can see, creators, obra owners, and admins can edit
     match /lancamentos/{lancamentoId} {
-      allow get, list: if isSignedIn();
+      allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && isValidLancamento(incoming());
+      allow create: if isSignedIn() && isValidLancamento(incoming()) && incoming().criadoPor == request.auth.uid;
       
       allow update: if isSignedIn() && 
                     (
